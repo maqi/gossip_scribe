@@ -1,0 +1,4 @@
+[[package]]
+name = "gossip_scribe"
+version = "0.1.0"
+
