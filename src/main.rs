@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone)]
 struct GossipEvent {
     index: u32,
+    generation: u32,
     name: String,
     creator: String,
     self_parent: String,
@@ -33,6 +34,7 @@ impl Default for GossipEvent {
     fn default() -> GossipEvent {
         GossipEvent {
             index: 0,
+            generation: 0,
             name: "".to_string(),
             creator: "".to_string(),
             self_parent: "".to_string(),
@@ -111,6 +113,7 @@ fn read(
         for i in 2..events.len() {
             let mut gossip_event = GossipEvent::default();
             gossip_event.index = i as u32 - 1;
+            gossip_event.generation = gossip_event.index;
             gossip_event.name = events[i].to_string();
             gossip_event.creator = node.to_string();
             gossip_event.self_parent = events[i - 1].to_string();
@@ -877,6 +880,13 @@ fn write_evaluates<T: Write>(
             {
                 let self_parent = gossip_graph.get(&event.self_parent).unwrap();
                 if event.equals_to(self_parent) {
+                    writeln!(
+                        out,
+                        " {} [label=\"{}_{}\"]",
+                        event.name,
+                        event.creator.chars().next().unwrap(),
+                        event.generation
+                    )?;
                     continue;
                 }
             }
@@ -884,7 +894,12 @@ fn write_evaluates<T: Write>(
             writeln!(out, " {} [shape=rectangle]", event.name)?;
 
             write!(out, " {} ", event.name)?;
-            write!(out, " [label=\"{}", event.name)?;
+            write!(
+                out,
+                " [label=\"{}_{}",
+                event.creator.chars().next().unwrap(),
+                event.generation
+            )?;
 
             write!(out, "\nRound: [")?;
             for round in &event.round {
@@ -955,11 +970,19 @@ fn write_evaluates<T: Write>(
                 }
             }
             writeln!(out, "\"]")?;
+        } else {
+            writeln!(
+                out,
+                " {} [label=\"{}_{}\"]",
+                event.name,
+                event.creator.chars().next().unwrap(),
+                event.generation
+            )?;
         }
     }
 
     let super_majority = ((2 * initial_events.len()) / 3) + 1;
-    // For each creator, there shall is only one observor
+    // For each creator, there shall be only one observor
     for initial in initial_events.iter() {
         let mut target_event = gossip_graph.get(initial).unwrap().clone();
         loop {

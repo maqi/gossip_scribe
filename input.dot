@@ -32,7 +32,8 @@ b_0_1 -> b_1
 b_1 -> b_2
 b_2 -> b_3 [minlen=2]
 b_3 -> b_4 [minlen=3]
-b_4 -> b_5 [minlen=3]
+b_4 -> b_4_0 [minlen=3]
+b_4_0 -> b_5 [minlen=3]
 b_5 -> b_6
 b_6 -> b_7
 b_7 -> b_8
@@ -49,8 +50,9 @@ c_0_0 -> c_0_1
 c_0_1 -> c_1 [minlen=2]
 c_1 -> c_2
 c_2 -> c_3 [minlen=2]
-c_3 -> c_4 [minlen=3]
-c_4 -> c_5 [minlen=13]
+c_3 -> c_4
+c_4 -> c_4_0 [minlen=3]
+c_4_0 -> c_5 [minlen=13]
 c_5 -> c_6 [minlen=4]
 c_6 -> c_7
 c_7 -> c_8
@@ -65,7 +67,8 @@ d_2 -> d_3
 d_3 -> d_4 [minlen=3]
 d_4 -> d_5
 d_5 -> d_6
-d_6 -> d_7 [minlen=2]
+d_6 -> d_6_0
+d_6_0 -> d_7 [minlen=2]
 d_7 -> d_8 [minlen=3]
 d_8 -> d_9
 d_9 -> d_10
@@ -142,4 +145,7 @@ d_13 -> b_12 [color=purple]
 b_12 -> d_14 [color=green3]
 b_11 -> c_7 [color=purple]
 c_7 -> b_13 [color=green3]
+c_4 -> b_4_0 [color=black]
+b_4_0 -> d_6_0 [color=black]
+d_6_0 -> c_4_0 [color=black]
 }
