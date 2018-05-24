@@ -327,6 +327,7 @@ fn deduce(
     }
 
     let super_majority = ((2 * initial_events.len()) / 3) + 1;
+    let one_third = (initial_events.len() / 3) + 1;
 
     // Carry out PARSEC for each node
     for node in creators.iter() {
@@ -343,14 +344,33 @@ fn deduce(
         } else {
             0
         };
+
         let mut own_estimation = if let Some(estimation) = self_parent.estimation.get(node) {
             estimation.clone()
         } else {
             BTreeSet::new()
         };
-        if let Some(estimation) = target.estimation.get(node) {
-            own_estimation = estimation.union(&own_estimation).cloned().collect();
+
+        let mut estimation_seen_list: BTreeMap<bool, BTreeSet<String>> = BTreeMap::new();
+        calculate_estimation_seen_list(
+            gossip_graph,
+            target.clone(),
+            &mut estimation_seen_list,
+            own_round,
+            own_step,
+            node.clone(),
+        );
+        for estimation in estimation_seen_list.iter() {
+            if estimation.1.len() >= one_third {
+                let _ = own_estimation.insert(*estimation.0);
+            }
         }
+        if own_estimation.len() == 0 {
+            if let Some(estimation) = target.estimation.get(node) {
+                own_estimation = estimation.clone();
+            }
+        }
+
         let mut own_decision = if let Some(decision) = self_parent.decision.get(node) {
             Some(*decision)
         } else {
@@ -495,6 +515,82 @@ fn deduce(
             event.marked = true;
             let _ = event.step.insert(node.clone(), own_step);
             let _ = event.round.insert(node.clone(), own_round);
+        }
+    }
+}
+
+fn calculate_estimation_seen_list(
+    gossip_graph: &BTreeMap<String, GossipEvent>,
+    tip: GossipEvent,
+    estimation_seen_list: &mut BTreeMap<bool, BTreeSet<String>>,
+    round: u32,
+    step: u32,
+    whom: String,
+) {
+    if let Some(self_parent) = gossip_graph.get(&tip.self_parent) {
+        let self_parent_round = if let Some(round) = self_parent.round.get(&whom) {
+            *round
+        } else {
+            0
+        };
+        let self_parent_step = if let Some(step) = self_parent.step.get(&whom) {
+            *step
+        } else {
+            0
+        };
+        if self_parent_round >= round && self_parent_step >= step {
+            if let Some(estimations) = self_parent.estimation.get(&whom) {
+                for estimation in estimations {
+                    let mut voters = if let Some(voters) = estimation_seen_list.get(&estimation) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(self_parent.creator.clone());
+                    let _ = estimation_seen_list.insert(*estimation, voters.clone());
+                }
+            }
+            calculate_estimation_seen_list(
+                gossip_graph,
+                self_parent.clone(),
+                estimation_seen_list,
+                round,
+                step,
+                whom.clone(),
+            );
+        }
+    }
+    if let Some(other_parent) = gossip_graph.get(&tip.other_parent) {
+        let other_parent_round = if let Some(round) = other_parent.round.get(&whom) {
+            *round
+        } else {
+            0
+        };
+        let other_parent_step = if let Some(step) = other_parent.step.get(&whom) {
+            *step
+        } else {
+            0
+        };
+        if other_parent_round >= round && other_parent_step >= step {
+            if let Some(estimations) = other_parent.estimation.get(&whom) {
+                for estimation in estimations {
+                    let mut voters = if let Some(voters) = estimation_seen_list.get(&estimation) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(other_parent.creator.clone());
+                    let _ = estimation_seen_list.insert(*estimation, voters.clone());
+                }
+            }
+            calculate_estimation_seen_list(
+                gossip_graph,
+                other_parent.clone(),
+                estimation_seen_list,
+                round,
+                step,
+                whom.clone(),
+            );
         }
     }
 }
