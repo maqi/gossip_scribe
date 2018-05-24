@@ -332,11 +332,12 @@ fn deduce(
     for node in creators.iter() {
         let self_parent = gossip_graph.get(&target.self_parent).unwrap().clone();
 
-        let mut own_step = if let Some(step) = self_parent.step.get(node) {
+        let self_parent_step = if let Some(step) = self_parent.step.get(node) {
             *step
         } else {
             0
         };
+        let mut own_step = self_parent_step;
         let mut own_round = if let Some(round) = self_parent.round.get(node) {
             *round
         } else {
@@ -372,6 +373,8 @@ fn deduce(
                 gossip_graph,
                 target.clone(),
                 &mut binary_value_seen_list,
+                own_round,
+                own_step,
                 node.clone(),
             );
 
@@ -473,6 +476,9 @@ fn deduce(
                 }
             }
         }
+        if own_step != self_parent_step {
+            own_bin_values.clear();
+        }
 
         if let Some(event) = gossip_graph.get_mut(&target.name) {
             let _ = event.estimation.insert(node.clone(), own_estimation);
@@ -566,45 +572,75 @@ fn calculate_strongly_seen_bin_values(
     gossip_graph: &BTreeMap<String, GossipEvent>,
     tip: GossipEvent,
     binary_value_seen_list: &mut BTreeMap<bool, BTreeSet<String>>,
+    round: u32,
+    step: u32,
     whom: String,
 ) {
     if let Some(self_parent) = gossip_graph.get(&tip.self_parent) {
-        if let Some(ests) = self_parent.estimation.get(&whom) {
-            for est in ests {
-                let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
-                    voters.clone()
-                } else {
-                    BTreeSet::new()
-                };
-                let _ = voters.insert(self_parent.creator.clone());
-                let _ = binary_value_seen_list.insert(*est, voters);
+        let self_parent_round = if let Some(round) = self_parent.round.get(&whom) {
+            *round
+        } else {
+            0
+        };
+        let self_parent_step = if let Some(step) = self_parent.step.get(&whom) {
+            *step
+        } else {
+            0
+        };
+        if self_parent_round >= round && self_parent_step >= step {
+            if let Some(ests) = self_parent.estimation.get(&whom) {
+                for est in ests {
+                    let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(self_parent.creator.clone());
+                    let _ = binary_value_seen_list.insert(*est, voters);
+                }
             }
+            calculate_strongly_seen_bin_values(
+                gossip_graph,
+                self_parent.clone(),
+                binary_value_seen_list,
+                round,
+                step,
+                whom.clone(),
+            );
         }
-        calculate_strongly_seen_bin_values(
-            gossip_graph,
-            self_parent.clone(),
-            binary_value_seen_list,
-            whom.clone(),
-        );
     }
     if let Some(other_parent) = gossip_graph.get(&tip.other_parent) {
-        if let Some(ests) = other_parent.estimation.get(&whom) {
-            for est in ests {
-                let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
-                    voters.clone()
-                } else {
-                    BTreeSet::new()
-                };
-                let _ = voters.insert(other_parent.creator.clone());
-                let _ = binary_value_seen_list.insert(*est, voters);
+        let other_parent_round = if let Some(round) = other_parent.round.get(&whom) {
+            *round
+        } else {
+            0
+        };
+        let other_parent_step = if let Some(step) = other_parent.step.get(&whom) {
+            *step
+        } else {
+            0
+        };
+        if other_parent_round >= round && other_parent_step >= step {
+            if let Some(ests) = other_parent.estimation.get(&whom) {
+                for est in ests {
+                    let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(other_parent.creator.clone());
+                    let _ = binary_value_seen_list.insert(*est, voters);
+                }
             }
+            calculate_strongly_seen_bin_values(
+                gossip_graph,
+                other_parent.clone(),
+                binary_value_seen_list,
+                round,
+                step,
+                whom.clone(),
+            );
         }
-        calculate_strongly_seen_bin_values(
-            gossip_graph,
-            other_parent.clone(),
-            binary_value_seen_list,
-            whom.clone(),
-        );
     }
 }
 
