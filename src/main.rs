@@ -501,6 +501,7 @@ fn deduce(
         }
         if own_step != self_parent_step {
             own_bin_values.clear();
+            own_aux_vote = None;
         }
 
         if let Some(event) = gossip_graph.get_mut(&target.name) {
