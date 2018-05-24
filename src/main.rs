@@ -776,7 +776,7 @@ fn write_evaluates<T: Write>(
         // write!(out, " {} ", event.name)?;
         // writeln!(out, " [label=\"Index: {}\"]", event.index)?;
 
-        if event.estimation.len() > 0 {
+        if event.estimation.len() == initial_events.len() {
             {
                 let self_parent = gossip_graph.get(&event.self_parent).unwrap();
                 if event.equals_to(self_parent) {
@@ -847,8 +847,12 @@ fn write_evaluates<T: Write>(
                 write!(out, "]")?;
                 if event.decision.len() > 0 {
                     write!(out, "\nDec: [")?;
-                    for decision in event.decision.keys() {
-                        write!(out, "{}:{{t}} ", decision.chars().next().unwrap())?;
+                    for decision in &event.decision {
+                        if *decision.1 {
+                            write!(out, "{}:{{t}} ", decision.0.chars().next().unwrap())?;
+                        } else {
+                            write!(out, "{}:{{f}} ", decision.0.chars().next().unwrap())?;
+                        }
                     }
                     write!(out, "]")?;
                 }
