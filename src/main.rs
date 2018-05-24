@@ -343,11 +343,14 @@ fn deduce(
         } else {
             0
         };
-        let mut own_estimation = if let Some(estimation) = target.estimation.get(node) {
+        let mut own_estimation = if let Some(estimation) = self_parent.estimation.get(node) {
             estimation.clone()
         } else {
             BTreeSet::new()
         };
+        if let Some(estimation) = target.estimation.get(node) {
+            own_estimation = estimation.union(&own_estimation).cloned().collect();
+        }
         let mut own_decision = if let Some(decision) = self_parent.decision.get(node) {
             Some(*decision)
         } else {
