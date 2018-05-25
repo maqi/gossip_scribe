@@ -20,6 +20,7 @@ struct GossipEvent {
     aux_vote: BTreeMap<String, bool>,
     decision: BTreeMap<String, bool>,
     marked: bool,
+    observed: bool,
 }
 
 impl GossipEvent {
@@ -48,6 +49,7 @@ impl Default for GossipEvent {
             aux_vote: BTreeMap::new(),
             decision: BTreeMap::new(),
             marked: false,
+            observed: false,
         }
     }
 }
@@ -381,7 +383,6 @@ fn deduce(
         };
         let mut own_aux_vote = own_decision;
         let mut own_bin_values: BTreeSet<bool> = BTreeSet::new();
-
         if let Some(decision) = own_decision {
             own_estimation.clear();
             let _ = own_estimation.insert(decision);
@@ -519,6 +520,12 @@ fn deduce(
             event.marked = true;
             let _ = event.step.insert(node.clone(), own_step);
             let _ = event.round.insert(node.clone(), own_round);
+        }
+    }
+
+    if let Some(event) = gossip_graph.get_mut(&target.name) {
+        if event.estimation.len() == initial_events.len() {
+            event.observed = true;
         }
     }
 }
@@ -690,7 +697,7 @@ fn calculate_strongly_seen_bin_values(
         } else {
             0
         };
-        if self_parent_round >= round && self_parent_step >= step {
+        if self_parent_round >= round && self_parent_step >= step && self_parent.observed {
             if let Some(ests) = self_parent.estimation.get(&whom) {
                 for est in ests {
                     let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
@@ -723,7 +730,7 @@ fn calculate_strongly_seen_bin_values(
         } else {
             0
         };
-        if other_parent_round >= round && other_parent_step >= step {
+        if other_parent_round >= round && other_parent_step >= step && other_parent.observed {
             if let Some(ests) = other_parent.estimation.get(&whom) {
                 for est in ests {
                     let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
