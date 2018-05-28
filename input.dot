@@ -22,6 +22,10 @@ a_12 -> a_13
 a_13 -> a_14 [minlen=2]
 a_14 -> a_15 [minlen=2]
 a_15 -> a_16 [minlen=2]
+a_16 -> a_17
+a_17 -> a_18
+a_18 -> a_19
+a_19 -> a_20
 }
 
 subgraph cluster_bob {
@@ -38,10 +42,15 @@ b_5 -> b_6
 b_6 -> b_7
 b_7 -> b_8
 b_8 -> b_9 [minlen=3]
-b_9 -> b_10 [minlen=2]
+b_9 -> b_9_0
+b_9_0 -> b_10 [minlen=2]
 b_10 -> b_11 [minlen=7]
 b_11 -> b_12
 b_12 -> b_13 [minlen=2]
+b_13 -> b_13_0
+b_13_0 -> b_14
+b_14 -> b_15
+b_15 -> b_16
 }
 subgraph cluster_carol {
 style=invis
@@ -52,7 +61,8 @@ c_1 -> c_2
 c_2 -> c_3 [minlen=2]
 c_3 -> c_4
 c_4 -> c_4_0 [minlen=3]
-c_4_0 -> c_5 [minlen=13]
+c_4_0 -> c_4_1
+c_4_1 -> c_5 [minlen=13]
 c_5 -> c_6 [minlen=4]
 c_6 -> c_7
 c_7 -> c_8
@@ -69,7 +79,8 @@ d_4 -> d_5
 d_5 -> d_6
 d_6 -> d_6_0
 d_6_0 -> d_7 [minlen=2]
-d_7 -> d_8 [minlen=3]
+d_7 -> d_7_0
+d_7_0 -> d_8 [minlen=3]
 d_8 -> d_9
 d_9 -> d_10
 d_10 -> d_11
@@ -77,6 +88,8 @@ d_11 -> d_12 [minlen=6]
 d_12 -> d_13
 d_13 -> d_14 [minlen=3]
 d_14 -> d_15
+d_15 -> d_16
+d_16 -> d_17
 }
 {
 rank=same
@@ -144,8 +157,21 @@ d_13 -> c_6 [color=green3]
 d_13 -> b_12 [color=purple]
 b_12 -> d_14 [color=green3]
 b_11 -> c_7 [color=purple]
-c_7 -> b_13 [color=green3]
 c_4 -> b_4_0 [color=black]
 b_4_0 -> d_6_0 [color=black]
 d_6_0 -> c_4_0 [color=black]
+c_4_0 -> d_7_0 [color=black]
+d_7_0 -> c_4_1 [color=black]
+c_4_1 -> b_9_0 [color=black]
+b_13 -> a_17
+a_17 -> b_13_0
+b_13_0 -> d_15
+d_15 -> a_18
+a_19 -> b_14
+b_14 -> d_16
+d_14 -> b_13
+d_16 -> b_15
+b_15 -> a_20
+a_20 -> b_16
+b_16 -> d_17
 }

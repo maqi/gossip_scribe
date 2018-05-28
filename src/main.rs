@@ -21,6 +21,8 @@ struct GossipEvent {
     decision: BTreeMap<String, bool>,
     marked: bool,
     observed: bool,
+    increase_step: BTreeMap<String, bool>,
+    carry_on_estimation: BTreeMap<String, BTreeSet<bool>>,
 }
 
 impl GossipEvent {
@@ -50,6 +52,8 @@ impl Default for GossipEvent {
             decision: BTreeMap::new(),
             marked: false,
             observed: false,
+            increase_step: BTreeMap::new(),
+            carry_on_estimation: BTreeMap::new(),
         }
     }
 }
@@ -350,11 +354,40 @@ fn deduce(
             0
         };
 
-        let mut own_estimation = if let Some(estimation) = self_parent.estimation.get(node) {
+        let mut own_aux_vote = if let Some(aux_vote) = self_parent.aux_vote.get(node) {
+            Some(aux_vote.clone())
+        } else {
+            None
+        }; 
+
+        let mut increase_step = if let Some(increase_step) = self_parent.increase_step.get(node) {
+            *increase_step
+        } else {
+            false
+        };
+
+        let mut own_estimation = if increase_step {
+            if let Some(estimation) = self_parent.carry_on_estimation.get(node) {
+                estimation.clone()
+            } else {
+                BTreeSet::new()
+            }
+        } else if let Some(estimation) = self_parent.estimation.get(node) {
             estimation.clone()
         } else {
             BTreeSet::new()
         };
+
+        if increase_step {
+            own_aux_vote = None;
+            if self_parent_step == 2 {
+                own_step = 0;
+                own_round += 1;
+            } else {
+                own_step += 1;
+            }
+            increase_step = false;
+        }
 
         let mut estimation_seen_list: BTreeMap<bool, BTreeSet<String>> = BTreeMap::new();
         calculate_estimation_seen_list(
@@ -370,18 +403,24 @@ fn deduce(
                 let _ = own_estimation.insert(*estimation.0);
             }
         }
+
         if own_estimation.len() == 0 {
             if let Some(estimation) = target.estimation.get(node) {
                 own_estimation = estimation.clone();
             }
         }
 
+        let mut carry_on_estimation = BTreeSet::new();
+
         let mut own_decision = if let Some(decision) = self_parent.decision.get(node) {
             Some(*decision)
         } else {
             None
         };
-        let mut own_aux_vote = own_decision;
+
+        if !own_decision.is_none() {
+            own_aux_vote = own_decision;
+        }
         let mut own_bin_values: BTreeSet<bool> = BTreeSet::new();
         if let Some(decision) = own_decision {
             own_estimation.clear();
@@ -412,16 +451,14 @@ fn deduce(
                 let _ = own_bin_values.insert(*est);
             }
 
-            own_aux_vote = if let Some(aux_vote) = self_parent.aux_vote.get(node) {
-                Some(aux_vote.clone())
-            } else {
-                if own_bin_values.len() == 0 {
+            if own_aux_vote.is_none() {
+                own_aux_vote = if own_bin_values.len() == 0 {
                     None
                 } else if own_bin_values.len() == 1 {
                     Some(*own_bin_values.iter().next().unwrap())
                 } else {
                     Some(true)
-                }
+                };
             };
 
             let mut aux_votes_seen_list: BTreeMap<bool, BTreeSet<String>> = BTreeMap::new();
@@ -431,6 +468,7 @@ fn deduce(
                 let _ = aux_votes_seen_list.insert(aux_vote, voters);
             }
 
+            let mut decided_nodes = BTreeMap::new();
             calculate_strongly_seen_aux_votes(
                 gossip_graph,
                 target.clone(),
@@ -438,6 +476,7 @@ fn deduce(
                 own_round,
                 own_step,
                 node.clone(),
+                &mut decided_nodes,
             );
 
             let mut aux_voters = BTreeSet::new();
@@ -446,44 +485,45 @@ fn deduce(
                     let _ = aux_voters.insert(voter.clone());
                 }
             }
+            for decided in decided_nodes.iter() {
+                if let Some(mut nodes) = aux_votes_seen_list.get_mut(&!decided.1) {
+                    let _ = nodes.remove(decided.0);
+                }
+            }
 
             if own_step == 0 {
                 if aux_voters.len() >= super_majority {
                     for (aux_vote, voters) in aux_votes_seen_list.iter() {
-                        let est = if voters.len() >= super_majority {
+                        if voters.len() >= super_majority {
                             if *aux_vote {
                                 own_decision = Some(true);
-                                continue;
+                                break;
                             } else {
-                                false
+                                let _ = carry_on_estimation.insert(false);
                             }
-                        } else {
-                            true
-                        };
-
-                        own_estimation.clear();
-                        let _ = own_estimation.insert(est);
+                        }
                     }
-                    own_step += 1;
+                    if carry_on_estimation.len() == 0 {
+                        let _ = carry_on_estimation.insert(true);
+                    }
+                    increase_step = true;
                 }
             } else if own_step == 1 {
                 if aux_voters.len() >= super_majority {
                     for (aux_vote, voters) in aux_votes_seen_list.iter() {
-                        let est = if voters.len() >= super_majority {
-                            if !*aux_vote {
-                                own_decision = Some(false);
-                                continue;
+                        if voters.len() >= super_majority {
+                            if *aux_vote {
+                                let _ = carry_on_estimation.insert(true);
                             } else {
-                                true
+                                own_decision = Some(false);
+                                break;
                             }
-                        } else {
-                            false
-                        };
-
-                        own_estimation.clear();
-                        let _ = own_estimation.insert(est);
+                        }
                     }
-                    own_step += 1;
+                    if carry_on_estimation.len() == 0 {
+                        let _ = carry_on_estimation.insert(false);
+                    }
+                    increase_step = true;
                 }
             } else {
                 if aux_voters.len() >= super_majority {
@@ -495,17 +535,11 @@ fn deduce(
                             true
                         };
 
-                        own_estimation.clear();
-                        let _ = own_estimation.insert(est);
+                        let _ = carry_on_estimation.insert(est);
                     }
-                    own_step = 0;
-                    own_round += 1;
+                    increase_step = true;
                 }
             }
-        }
-        if own_step != self_parent_step {
-            own_bin_values.clear();
-            own_aux_vote = None;
         }
 
         if let Some(event) = gossip_graph.get_mut(&target.name) {
@@ -520,6 +554,8 @@ fn deduce(
             event.marked = true;
             let _ = event.step.insert(node.clone(), own_step);
             let _ = event.round.insert(node.clone(), own_round);
+            let _ = event.increase_step.insert(node.clone(), increase_step);
+            let _ = event.carry_on_estimation.insert(node.clone(), carry_on_estimation);
         }
     }
 
@@ -549,7 +585,7 @@ fn calculate_estimation_seen_list(
         } else {
             0
         };
-        if self_parent_round >= round && self_parent_step >= step {
+        if self_parent_round > round || self_parent_step >= step {
             if let Some(estimations) = self_parent.estimation.get(&whom) {
                 for estimation in estimations {
                     let mut voters = if let Some(voters) = estimation_seen_list.get(&estimation) {
@@ -582,7 +618,7 @@ fn calculate_estimation_seen_list(
         } else {
             0
         };
-        if other_parent_round >= round && other_parent_step >= step {
+        if other_parent_round > round || other_parent_step >= step {
             if let Some(estimations) = other_parent.estimation.get(&whom) {
                 for estimation in estimations {
                     let mut voters = if let Some(voters) = estimation_seen_list.get(&estimation) {
@@ -613,6 +649,7 @@ fn calculate_strongly_seen_aux_votes(
     round: u32,
     step: u32,
     whom: String,
+    decided_nodes: &mut BTreeMap<String, bool>,
 ) {
     if let Some(self_parent) = gossip_graph.get(&tip.self_parent) {
         let self_parent_round = if let Some(round) = self_parent.round.get(&whom) {
@@ -625,15 +662,25 @@ fn calculate_strongly_seen_aux_votes(
         } else {
             0
         };
-        if self_parent_round >= round && self_parent_step >= step {
-            if let Some(aux_vote) = self_parent.aux_vote.get(&whom) {
-                let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
-                    voters.clone()
-                } else {
-                    BTreeSet::new()
-                };
-                let _ = voters.insert(self_parent.creator.clone());
-                let _ = aux_votes_seen_list.insert(*aux_vote, voters.clone());
+        let decided = if decided_nodes.contains_key(&self_parent.creator) {
+            true
+        } else {
+            if let Some(dec) = self_parent.decision.get(&whom) {
+                let _ = decided_nodes.insert(self_parent.creator.clone(), *dec);
+            }
+            false
+        };
+        if self_parent_round > round || self_parent_step >= step || !self_parent.decision.get(&whom).is_none() {
+            if !decided {
+                if let Some(aux_vote) = self_parent.aux_vote.get(&whom) {
+                    let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(self_parent.creator.clone());
+                    let _ = aux_votes_seen_list.insert(*aux_vote, voters.clone());
+                }
             }
             calculate_strongly_seen_aux_votes(
                 gossip_graph,
@@ -642,6 +689,7 @@ fn calculate_strongly_seen_aux_votes(
                 round,
                 step,
                 whom.clone(),
+                decided_nodes,
             );
         }
     }
@@ -656,15 +704,25 @@ fn calculate_strongly_seen_aux_votes(
         } else {
             0
         };
-        if other_parent_round >= round && other_parent_step >= step {
-            if let Some(aux_vote) = other_parent.aux_vote.get(&whom) {
-                let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
-                    voters.clone()
-                } else {
-                    BTreeSet::new()
-                };
-                let _ = voters.insert(other_parent.creator.clone());
-                let _ = aux_votes_seen_list.insert(*aux_vote, voters.clone());
+        let decided = if decided_nodes.contains_key(&other_parent.creator) {
+            true
+        } else {
+            if let Some(dec) = other_parent.decision.get(&whom) {
+                let _ = decided_nodes.insert(other_parent.creator.clone(), *dec);
+            }
+            false
+        };
+        if other_parent_round > round || other_parent_step >= step || !other_parent.decision.get(&whom).is_none() {
+            if !decided {
+                if let Some(aux_vote) = other_parent.aux_vote.get(&whom) {
+                    let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
+                        voters.clone()
+                    } else {
+                        BTreeSet::new()
+                    };
+                    let _ = voters.insert(other_parent.creator.clone());
+                    let _ = aux_votes_seen_list.insert(*aux_vote, voters.clone());
+                }
             }
             calculate_strongly_seen_aux_votes(
                 gossip_graph,
@@ -673,6 +731,7 @@ fn calculate_strongly_seen_aux_votes(
                 round,
                 step,
                 whom.clone(),
+                decided_nodes,
             );
         }
     }
@@ -697,7 +756,7 @@ fn calculate_strongly_seen_bin_values(
         } else {
             0
         };
-        if self_parent_round >= round && self_parent_step >= step && self_parent.observed {
+        if self_parent_round > round || self_parent_step >= step && self_parent.observed {
             if let Some(ests) = self_parent.estimation.get(&whom) {
                 for est in ests {
                     let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
@@ -730,7 +789,7 @@ fn calculate_strongly_seen_bin_values(
         } else {
             0
         };
-        if other_parent_round >= round && other_parent_step >= step && other_parent.observed {
+        if other_parent_round > round || other_parent_step >= step && other_parent.observed {
             if let Some(ests) = other_parent.estimation.get(&whom) {
                 for est in ests {
                     let mut voters = if let Some(voters) = binary_value_seen_list.get(est) {
