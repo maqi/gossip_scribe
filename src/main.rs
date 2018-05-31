@@ -358,7 +358,7 @@ fn deduce(
             Some(aux_vote.clone())
         } else {
             None
-        }; 
+        };
 
         let mut increase_step = if let Some(increase_step) = self_parent.increase_step.get(node) {
             *increase_step
@@ -555,7 +555,10 @@ fn deduce(
             let _ = event.step.insert(node.clone(), own_step);
             let _ = event.round.insert(node.clone(), own_round);
             let _ = event.increase_step.insert(node.clone(), increase_step);
-            let _ = event.carry_on_estimation.insert(node.clone(), carry_on_estimation);
+            let _ = event.carry_on_estimation.insert(
+                node.clone(),
+                carry_on_estimation,
+            );
         }
     }
 
@@ -670,7 +673,9 @@ fn calculate_strongly_seen_aux_votes(
             }
             false
         };
-        if self_parent_round > round || self_parent_step >= step || !self_parent.decision.get(&whom).is_none() {
+        if self_parent_round > round || self_parent_step >= step ||
+            !self_parent.decision.get(&whom).is_none()
+        {
             if !decided {
                 if let Some(aux_vote) = self_parent.aux_vote.get(&whom) {
                     let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
@@ -712,7 +717,9 @@ fn calculate_strongly_seen_aux_votes(
             }
             false
         };
-        if other_parent_round > round || other_parent_step >= step || !other_parent.decision.get(&whom).is_none() {
+        if other_parent_round > round || other_parent_step >= step ||
+            !other_parent.decision.get(&whom).is_none()
+        {
             if !decided {
                 if let Some(aux_vote) = other_parent.aux_vote.get(&whom) {
                     let mut voters = if let Some(voters) = aux_votes_seen_list.get(&aux_vote) {
@@ -981,7 +988,7 @@ fn write_evaluates<T: Write>(
 
             write!(out, "\nEst: [")?;
             for est in &event.estimation {
-                write!(out, "{}:{{", est.0.chars().next().unwrap())?;
+                write!(out, " {}:{{", est.0.chars().next().unwrap())?;
                 for estimate in est.1 {
                     if *estimate {
                         write!(out, "t")?;
@@ -999,7 +1006,7 @@ fn write_evaluates<T: Write>(
             if event.binary_value.len() > 0 {
                 write!(out, "\nBin: [")?;
                 for bin_value in &event.binary_value {
-                    write!(out, "{}:{{", bin_value.0.chars().next().unwrap())?;
+                    write!(out, " {}:{{", bin_value.0.chars().next().unwrap())?;
                     for bool_value in bin_value.1 {
                         if *bool_value {
                             write!(out, "t")?;
@@ -1017,9 +1024,9 @@ fn write_evaluates<T: Write>(
                 write!(out, "\nAux: [")?;
                 for aux_vote in &event.aux_vote {
                     if *aux_vote.1 {
-                        write!(out, "{}:{{t}} ", aux_vote.0.chars().next().unwrap())?;
+                        write!(out, " {}:{{t}} ", aux_vote.0.chars().next().unwrap())?;
                     } else {
-                        write!(out, "{}:{{f}} ", aux_vote.0.chars().next().unwrap())?;
+                        write!(out, " {}:{{f}} ", aux_vote.0.chars().next().unwrap())?;
                     }
                 }
                 write!(out, "]")?;
@@ -1027,9 +1034,9 @@ fn write_evaluates<T: Write>(
                     write!(out, "\nDec: [")?;
                     for decision in &event.decision {
                         if *decision.1 {
-                            write!(out, "{}:{{t}} ", decision.0.chars().next().unwrap())?;
+                            write!(out, " {}:{{t}} ", decision.0.chars().next().unwrap())?;
                         } else {
-                            write!(out, "{}:{{f}} ", decision.0.chars().next().unwrap())?;
+                            write!(out, " {}:{{f}} ", decision.0.chars().next().unwrap())?;
                         }
                     }
                     write!(out, "]")?;
